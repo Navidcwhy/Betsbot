@@ -9,7 +9,7 @@ Status: planering inför Fas 0 · Uppdaterad: 2026-11-18
 **Utanför scope:**
 
 - **Automatisk placering hos spelbolag.** Det bryter mot bolagens villkor (se §3).
-- **Betting exchange.** Den är i praktiken referenspriset och ger sällan value med vår metod.
+- **Spel på betting exchange.** Börsen är i praktiken referenspriset och ger sällan value med vår metod. Den används bara som datakälla.
 - **Livespel.** Det kräver placering inom sekunder och går inte att göra manuellt.
 - **Kombinationsspel.** Bolagets marginal multipliceras för varje led, så vi spelar bara singlar.
 
@@ -19,9 +19,9 @@ Status: planering inför Fas 0 · Uppdaterad: 2026-11-18
 |---|---|---|
 | Spelbolag | Svensklicensierade. Vilka avgörs av data i Fas 0. | Taget |
 | Automatik | Halvautomatik: systemet föreslår, du placerar. Ingen exchange. | Taget |
-| Kassa | 1 000–2 000 kr, max 1 unit per spel | Taget |
-| Unit-storlek | 2 % av aktuell kassa (i stället för 10 %) | Föreslaget, väntar på OK |
-| Databudget | 0 kr under bygget, sedan en betald mätmånad (≈300–600 kr) | Föreslaget, väntar på OK |
+| Kassa | 1 000–2 000 kr (rekommenderat: 2 000 kr), max 1 unit per spel | Taget |
+| Unit-storlek | 50 kr fast | Taget |
+| Databudget | 0 kr. Bara gratis och tillåtna källor (se §8). | Taget |
 | Sporter | Fotboll först. Därefter ishockey, basket och tennis, en i taget. | Taget |
 | Drift | Egen server med befintlig vakthund, alternativt VPS för ~50 kr/mån | Taget |
 
@@ -32,6 +32,7 @@ Status: planering inför Fas 0 · Uppdaterad: 2026-11-18
 | bet365:s villkor, även de svenska, förbjuder bots, AI, hjälpprogram och scraping. Följden kan bli fryst konto, ogiltiga spel, innehållna vinster eller stängt konto. | Ingen automatisk placering och ingen scraping. Odds köps från leverantör. |
 | Inget svensklicensierat sportbolag med öppet API för att lägga spel har hittats. Pinnacle stängde sitt publika API den 23 juli 2025. | Halvautomatik. |
 | Pinnacle har svensk licens (pinnacle.se, PinBet (Sverige) Ltd). | Pinnacle används som referens för rättvisa odds. Vi spelar inte där. |
+| Oddsaggregatorer skrapar bolagens interna gränssnitt och sprider anropen över tusentals roterande IP-adresser (proxies) för att inte bli blockerade. | Görs inte här. Det bryter bolagens villkor och innebär att kringgå deras blockering. Ett test mot sådana gränssnitt stoppades av utvecklingsmiljön som obehörig åtkomst. |
 | Bolag begränsar konton som vinner över tid. | Logga begränsningar per konto och ha 1–2 reservbolag. |
 | Vinster hos svensklicensierade bolag är skattefria. Insättningsgräns är obligatorisk. | Spela bara hos svensklicensierade bolag. Sätt insättningsgränsen lika med kassan. |
 
@@ -39,7 +40,7 @@ Status: planering inför Fas 0 · Uppdaterad: 2026-11-18
 
 ## 4. Metod: value mot skarp marknad
 
-1. Hämta odds från den skarpa marknaden: Pinnacle, som har låg marginal och tar emot professionella spelare.
+1. Hämta odds från den skarpa marknaden: Betfair-börsen och Pinnacle, som har låg marginal och tar emot professionella spelare.
 2. Räkna bort marginalen. Det ger en rättvis sannolikhet *p* per utfall.
 3. Jämför med de svenska bolagens odds: **EV = p × odds − 1**.
 4. Skicka signal om EV ≥ tröskeln (start: 3 %) och alla kontroller passerar.
@@ -53,7 +54,7 @@ Allt som rör pengar är deterministisk kod. En AI-modell används bara för tex
 
 | Agent | Jobb | Typ | Fas |
 |---|---|---|---|
-| Sökagent | Hämtar odds (svenska bolag och Pinnacle). Matchar event och marknader mellan källorna. | Kod | 0 |
+| Sökagent | Bevakar Betfair-priser löpande. När den skarpa marknaden rör sig hämtas den ligans odds från gratis-API:erna. Matchar event och marknader mellan källorna. | Kod | 0 |
 | Value-beräknare | Räknar bort marginalen, räknar EV och sätter lägsta godtagbara odds. | Kod | 0 |
 | Regelkontroll | Spärrar marknader där reglerna skiljer sig mellan bolag. Flaggar EV > 15 % som troligt datafel. | Kod (regeltabell) | 1 |
 | Riskagent | Insats, gränser, exponering och nödstopp. Har veto över allt. | Kod | 1 |
@@ -80,21 +81,21 @@ Undersöks i Fas 0: om bolagen stöder länkar som lägger spelet direkt i kupon
 
 | Regel | Värde | Varför |
 |---|---|---|
-| 1 unit | 2 % av aktuell kassa, räknas om varje måndag | Se tabellen nedan |
+| 1 unit | 50 kr (fast) | Ditt beslut. Se risktabellen nedan. |
 | Max insats per spel | 1 unit (½ unit vid odds > 4,0) | Variansen ökar med oddset |
 | Spel per match | Max 1 | Undviker korrelerade spel |
 | Signaler per dag | Max 15 | Skydd mot buggar och felaktig data |
 | Öppen exponering | Max 10 units | Samma skäl |
 | Kassan −30 % från start | Systemet pausar och vi granskar | Nödstopp |
 
-Risk att någon gång förlora hela kassan, givet platta insatser, odds runt 2,0 och att systemet verkligen har 3 % edge:
+Risk att någon gång förlora hela kassan med 50 kr per spel, givet odds runt 2,0 och att systemet verkligen har 3 % edge:
 
-| Unit | Insats vid 1 000 kr | Insats vid 2 000 kr | Risk att förlora allt |
-|---|---|---|---|
-| 10 % | 100 kr | 200 kr | ~55 % |
-| 5 % | 50 kr | 100 kr | ~30 % |
-| **2 % (förslag)** | **20 kr** | **40 kr** | **~5 %** |
-| 1 % | 10 kr | 20 kr | < 1 % |
+| Kassa | 50 kr som andel av kassan | Risk att förlora allt |
+|---|---|---|
+| 1 000 kr | 5 % | ~30 % |
+| **2 000 kr (rekommenderat)** | **2,5 %** | **~9 %** |
+
+Som jämförelse ger 2 % av kassan ungefär 5 % risk och 10 % av kassan ungefär 55 % risk.
 
 Om systemet saknar edge tar kassan förr eller senare slut, oavsett unit. Med en liten unit hinner CLV visa det innan pengarna är borta.
 
@@ -111,37 +112,59 @@ Bara spel före matchstart (pre-match).
 
 En sport får signaler först när två villkor är uppfyllda: reglerna är mappade, och Fas 1-kriteriet är uppfyllt för just den sporten.
 
-## 8. Data
+## 8. Data (0 kr)
 
-| Alternativ | Pris | Kommentar |
-|---|---|---|
-| The Odds API, gratis | 0 kr, 500 krediter/mån | Räcker för att bygga, men inte för att fånga value i tid. |
-| The Odds API, betald | $30 (20k krediter) eller $59 (100k krediter) per mån | EU-regionen har Pinnacle (hämtas från den publika sajten, viss fördröjning) och Unibet. Betsson, NordicBet m.fl. är inte verifierade. |
-| Andra (OddsPapi, odds-api.io m.fl.) | Varierar, vissa har gratisnivå | Jämförs i Fas 0. |
+### Hur aggregatorerna gör
 
-En kredit motsvarar ett anrop för en sport eller liga, en marknad och en region. Leverantörens täckning avgör vilka bolag vi kan leta value hos.
+1. De läser samma data som bolagens egna sajter laddar, via bolagens interna gränssnitt.
+2. Bolagen blockerar det aktivt, så anropen sprids över tusentals roterande IP-adresser (proxies).
+3. Ett team lagar skraparna varje gång en sajt ändras.
+
+Det man betalar för i ett oddsflöde är alltså döljandet och underhållet, inte själva oddsen. Vi kopierar inte det upplägget (se §3).
+
+### Gratis och tillåtna källor
+
+| Källa | Vad den ger | Kostnad | Begränsning |
+|---|---|---|---|
+| Betfair Exchange API, fördröjd nyckel | Skarpa back- och lay-priser för hela marknaden, fördröjda 1–180 s | 0 kr | Kräver Betfair-konto, men bara för data och inget spel där. Endast personligt bruk. Ger inte omsatt volym, så likviditeten bedöms via skillnaden mellan back- och lay-pris. |
+| The Odds API, gratisnivå | Odds per liga från EU-bolag, bland annat Pinnacle och Unibet | 0 kr | 500 krediter/mån, ungefär 16 anrop per dag. En kredit = en liga, en marknad, en region. |
+| OddsPapi, gratisnivå | Enligt leverantören 350+ bolag, inklusive Pinnacle | 0 kr | Ungefär 250 anrop/mån enligt uppgift. Täckningen av svenska bolag är inte verifierad. |
+
+### Upplägg: följ den skarpa marknaden och fråga riktat
+
+- Betfair bevakas hela tiden, gratis.
+- När ett skarpt pris rör sig tydligt läggs ett av de få gratisanropen på just den ligan, för att se om de svenska bolagen ligger efter. Det är då value uppstår.
+- Det ger runt 25 riktade kontroller per dag i stället för blinda anrop.
+
+### Kontrolleras i Fas 0
+
+- Att Betfair tar emot kunder från Sverige i dag och att API-villkoren tillåter vårt användningssätt (personligt bruk).
+- Att Unibets odds i The Odds API (EU) stämmer med unibet.se.
+- Vilka svenska bolag OddsPapi faktiskt täcker.
+- Om gratisdatan ger tillräckligt många signaler (se §9).
 
 ## 9. Faser och beslutspunkter
 
 | Fas | Innehåll | Kriterium för att gå vidare |
 |---|---|---|
-| 0: Bygg och mät (2–3 v) | Repo, datainsamling, value-motor, databas. Fotboll, plus loggning av övriga sporter om kvoten räcker. | Vi vet hur många value-tillfällen med EV ≥ 3 % som finns per dag och vilka bolag som oftast har value. Tillfällena måste stå öppna länge nog för manuell placering (startkrav: median ≥ 5 min). |
+| 0: Bygg och mät (2–3 v) | Repo, Betfair-bevakning, riktade anrop, value-motor, databas. Fotboll, plus loggning av övriga sporter om kvoten räcker. | Vi vet hur många value-tillfällen med EV ≥ 3 % gratisdatan ger per dag och vilka bolag som oftast har value. Tillfällena måste stå öppna länge nog för manuell placering (startkrav: median ≥ 5 min). Under 2 signaler per dag: nytt beslut om datan. |
 | 1: Papper (3–4 v) | Signaler till Telegram, inga pengar. | Snitt-CLV ≥ +1,5 % över minst 300 signaler. |
 | 2: Skarpt (4–8 v) | 2 % unit, manuell placering, 1–2 bolag. | CLV håller på riktiga spel. Slippage under 30 % (startvärde). |
 | 3: Utöka | Fler sporter och bolag, analys- och statistikagent. | Per sport enligt §7. |
 
 **Stoppregel:** om CLV ≤ 0 efter 300 signaler stoppar vi eller byter metod, innan några riktiga pengar satsas.
 
-## 10. Ekonomi med vald kassa
+## 10. Ekonomi
 
-Antaganden: 3 % edge i snitt, ~10 spel per dag, ~300 spel per månad.
+Antaganden: 50 kr per spel, 3 % edge i snitt och 0 kr i datakostnad. Hur många signaler gratisdatan ger mäts i Fas 0.
 
-| Kassa | Insats | Omsättning/mån | Förväntad vinst/mån |
+| Signaler per dag | Spel per mån | Omsättning per mån | Förväntad vinst per mån |
 |---|---|---|---|
-| 1 000 kr | 20 kr | ~6 000 kr | ~+180 kr |
-| 2 000 kr | 40 kr | ~12 000 kr | ~+360 kr |
+| 3 | ~90 | ~4 500 kr | ~+135 kr |
+| 5 | ~150 | ~7 500 kr | ~+225 kr |
+| 10 | ~300 | ~15 000 kr | ~+450 kr |
 
-Betald oddsdata (≈300–600 kr/mån) äter i stort sett hela den förväntade vinsten. Testperioden går alltså i bästa fall ungefär jämnt ut. Det är priset för att få veta om systemet fungerar. En större kassa först när CLV är bevisad.
+Ingen datakostnad äter av vinsten. Svängningarna från månad till månad är ändå större än den förväntade vinsten, så resultatet bedöms på CLV och inte på saldot.
 
 ## 11. Teknik och drift
 
@@ -159,7 +182,15 @@ Betald oddsdata (≈300–600 kr/mån) äter i stort sett hela den förväntade 
 - Tid från signal till placering.
 - Avkastning och största nedgång (släpande mått).
 - Antal dagar innan ett konto begränsas.
-- Datakostnad i förhållande till förväntad vinst.
+- Signaler per gratisanrop, det vill säga hur väl Betfair-bevakningen träffar.
+
+## 13. Att göra (du)
+
+1. Öppna ett Betfair-konto och skapa en fördröjd applikationsnyckel. Kontot används bara för data.
+2. Registrera en gratisnyckel hos The Odds API.
+3. Senare: skapa en Telegram-bot via BotFather.
+
+Nycklarna läggs i `.env` på servern och skickas aldrig i chatten.
 
 ## Källor
 
@@ -168,3 +199,7 @@ Betald oddsdata (≈300–600 kr/mån) äter i stort sett hela den förväntade 
 - Pinnacle tillbaka i Sverige med licens: https://igamingbusiness.com/sports-betting/pinnacle-relaunches-in-sweden-after-two-year-absence/
 - Spelinspektionen, anmärkning för PinBet (Sverige) Ltd 2025: https://www.spelinspektionen.se/globalassets/dokument/tillsynsbeslut/varning-anmarkning/pinbet---beslut-om-anmarkning-251512.pdf
 - The Odds API (planer och bolag): https://the-odds-api.com/
+- Betfair, applikationsnycklar (fördröjd nyckel): https://betfair-developer-docs.atlassian.net/wiki/x/URAp
+- The Odds API, gratisnivåns gränser: https://oddspapi.io/blog/the-odds-api-free-tier-limits
+- OddsPapi, gratisnivå: https://oddspapi.io/blog/?p=144
+- Proxies och skrapning av odds: https://databay.com/blog/proxies-for-sports-betting-odds
