@@ -1,0 +1,42 @@
+name: Testa gratis oddsdata
+
+on:
+  workflow_dispatch:
+    inputs:
+      league:
+        description: "Liga att kontrollera, t.ex. soccer_epl (kostar 1 gratiskredit)"
+        required: false
+        default: soccer_epl
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enhetstester
+        run: python3 -m unittest discover -s tests -v
+
+      - name: Kontrollera att nyckeln finns
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          if [ -z "$ODDS_API_KEY" ]; then
+            echo "::error::Hemligheten ODDS_API_KEY saknas. Lägg till den under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      - name: Lista ligor (kostar inget)
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: python3 scripts/check_free_data.py --ligor
+
+      - name: Kontrollera liga
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          LEAGUE: ${{ inputs.league }}
+        run: python3 scripts/check_free_data.py "$LEAGUE"
