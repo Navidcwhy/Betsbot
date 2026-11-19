@@ -9,7 +9,7 @@ Status: planering inför Fas 0 · Uppdaterad: 2026-11-18
 **Utanför scope:**
 
 - **Automatisk placering hos spelbolag.** Det bryter mot bolagens villkor (se §3).
-- **Spel på betting exchange.** Börsen är i praktiken referenspriset och ger sällan value med vår metod. Den används bara som datakälla.
+- **Spel på betting exchange.** Börsen är i praktiken referenspriset och ger sällan value med vår metod.
 - **Livespel.** Det kräver placering inom sekunder och går inte att göra manuellt.
 - **Kombinationsspel.** Bolagets marginal multipliceras för varje led, så vi spelar bara singlar.
 
@@ -33,6 +33,7 @@ Status: planering inför Fas 0 · Uppdaterad: 2026-11-18
 | Inget svensklicensierat sportbolag med öppet API för att lägga spel har hittats. Pinnacle stängde sitt publika API den 23 juli 2025. | Halvautomatik. |
 | Pinnacle har svensk licens (pinnacle.se, PinBet (Sverige) Ltd). | Pinnacle används som referens för rättvisa odds. Vi spelar inte där. |
 | Oddsaggregatorer skrapar bolagens interna gränssnitt och sprider anropen över tusentals roterande IP-adresser (proxies) för att inte bli blockerade. | Görs inte här. Det bryter bolagens villkor och innebär att kringgå deras blockering. Ett test mot sådana gränssnitt stoppades av utvecklingsmiljön som obehörig åtkomst. |
+| Betfair lämnade Sverige 16 juli 2025 och stänger ute kunder som bor i Sverige (kontrollerat på betfair.se 2026-11-19). | Betfair kan inte användas, inte ens som datakälla. Att gå runt spärren med VPN bryter villkoren och kan frysa kontot. |
 | Bolag begränsar konton som vinner över tid. | Logga begränsningar per konto och ha 1–2 reservbolag. |
 | Vinster hos svensklicensierade bolag är skattefria. Insättningsgräns är obligatorisk. | Spela bara hos svensklicensierade bolag. Sätt insättningsgränsen lika med kassan. |
 
@@ -40,7 +41,7 @@ Status: planering inför Fas 0 · Uppdaterad: 2026-11-18
 
 ## 4. Metod: value mot skarp marknad
 
-1. Hämta odds från den skarpa marknaden: Betfair-börsen och Pinnacle, som har låg marginal och tar emot professionella spelare.
+1. Hämta odds från den skarpa marknaden: Pinnacle, som har låg marginal och tar emot professionella spelare.
 2. Räkna bort marginalen. Det ger en rättvis sannolikhet *p* per utfall.
 3. Jämför med de svenska bolagens odds: **EV = p × odds − 1**.
 4. Skicka signal om EV ≥ tröskeln (start: 3 %) och alla kontroller passerar.
@@ -54,7 +55,7 @@ Allt som rör pengar är deterministisk kod. En AI-modell används bara för tex
 
 | Agent | Jobb | Typ | Fas |
 |---|---|---|---|
-| Sökagent | Bevakar Betfair-priser löpande. När den skarpa marknaden rör sig hämtas den ligans odds från gratis-API:erna. Matchar event och marknader mellan källorna. | Kod | 0 |
+| Sökagent | Schemalägger gratisanropen: bara ligor med matcher snart, och tätare nära avspark. Matchar event och marknader mellan källorna. | Kod | 0 |
 | Value-beräknare | Räknar bort marginalen, räknar EV och sätter lägsta godtagbara odds. | Kod | 0 |
 | Regelkontroll | Spärrar marknader där reglerna skiljer sig mellan bolag. Flaggar EV > 15 % som troligt datafel. | Kod (regeltabell) | 1 |
 | Riskagent | Insats, gränser, exponering och nödstopp. Har veto över allt. | Kod | 1 |
@@ -124,21 +125,26 @@ Det man betalar för i ett oddsflöde är alltså döljandet och underhållet, i
 
 ### Gratis och tillåtna källor
 
-| Källa | Vad den ger | Kostnad | Begränsning |
+| Källa | Vad den ger | Kostnad | Status |
 |---|---|---|---|
-| Betfair Exchange API, fördröjd nyckel | Skarpa back- och lay-priser för hela marknaden, fördröjda 1–180 s | 0 kr | Kräver Betfair-konto, men bara för data och inget spel där. Endast personligt bruk. Ger inte omsatt volym, så likviditeten bedöms via skillnaden mellan back- och lay-pris. |
-| The Odds API, gratisnivå | Odds per liga från EU-bolag, bland annat Pinnacle och Unibet | 0 kr | 500 krediter/mån, ungefär 16 anrop per dag. En kredit = en liga, en marknad, en region. |
-| OddsPapi, gratisnivå | Enligt leverantören 350+ bolag, inklusive Pinnacle | 0 kr | Ungefär 250 anrop/mån enligt uppgift. Täckningen av svenska bolag är inte verifierad. |
+| The Odds API, gratisnivå | Odds per liga från EU-bolag, bland annat Pinnacle och Unibet, i samma anrop | 0 kr | Huvudkälla. 500 krediter/mån, ungefär 16 anrop per dag. En kredit = en liga, en marknad, en region. |
+| OddsPapi, gratisnivå | Enligt leverantören 350+ bolag, inklusive Pinnacle | 0 kr | Reserv. Ungefär 250 anrop/mån enligt uppgift. Täckningen av svenska bolag är inte verifierad. |
+| Betfair Exchange API | – | – | Utgår. Betfair lämnade Sverige 16 juli 2025. |
+| SharpAPI, gratisnivå | Två amerikanska bolag, utan Pinnacle | – | Utgår. Pinnacle ingår först i en betald nivå. |
+| Smarkets | Börs med API | – | Oklart. Licensen gällde till april 2025. Kolla om smarkets.com tar emot kunder från Sverige. |
+| Pinnacle API | Officiell skarp data | 0 kr | Långskott. Stängt för allmänheten sedan juli 2025, men det går att ansöka via api@pinnacle.com. |
 
-### Upplägg: följ den skarpa marknaden och fråga riktat
+### Upplägg: schemalagda anrop
 
-- Betfair bevakas hela tiden, gratis.
-- När ett skarpt pris rör sig tydligt läggs ett av de få gratisanropen på just den ligan, för att se om de svenska bolagen ligger efter. Det är då value uppstår.
-- Det ger runt 25 riktade kontroller per dag i stället för blinda anrop.
+Utan en gratis realtidskälla läggs de få anropen där chansen till value är störst:
+
+- Bara ligor som har matcher inom 24 timmar.
+- Tätare anrop de sista två timmarna före avspark. Laguppställningar släpps ungefär en timme före avspark, och då rör sig priserna.
+- Fas 0 mäter vilka tider som faktiskt ger value, och schemat justeras efter det.
 
 ### Kontrolleras i Fas 0
 
-- Att Betfair tar emot kunder från Sverige i dag och att API-villkoren tillåter vårt användningssätt (personligt bruk).
+- Att The Odds API:s gratisnivå innehåller Pinnacle, och vilka svenska bolag som finns med. Testas med `scripts/check_free_data.py`.
 - Att Unibets odds i The Odds API (EU) stämmer med unibet.se.
 - Vilka svenska bolag OddsPapi faktiskt täcker.
 - Om gratisdatan ger tillräckligt många signaler (se §9).
@@ -147,7 +153,7 @@ Det man betalar för i ett oddsflöde är alltså döljandet och underhållet, i
 
 | Fas | Innehåll | Kriterium för att gå vidare |
 |---|---|---|
-| 0: Bygg och mät (2–3 v) | Repo, Betfair-bevakning, riktade anrop, value-motor, databas. Fotboll, plus loggning av övriga sporter om kvoten räcker. | Vi vet hur många value-tillfällen med EV ≥ 3 % gratisdatan ger per dag och vilka bolag som oftast har value. Tillfällena måste stå öppna länge nog för manuell placering (startkrav: median ≥ 5 min). Under 2 signaler per dag: nytt beslut om datan. |
+| 0: Bygg och mät (2–3 v) | Repo, schemalagda anrop, value-motor, databas. Fotboll, plus loggning av övriga sporter om kvoten räcker. | Vi vet hur många value-tillfällen med EV ≥ 3 % gratisdatan ger per dag och vilka bolag som oftast har value. Tillfällena måste stå öppna länge nog för manuell placering (startkrav: median ≥ 5 min). Under 2 signaler per dag: nytt beslut om datan. |
 | 1: Papper (3–4 v) | Signaler till Telegram, inga pengar. | Snitt-CLV ≥ +1,5 % över minst 300 signaler. |
 | 2: Skarpt (4–8 v) | 2 % unit, manuell placering, 1–2 bolag. | CLV håller på riktiga spel. Slippage under 30 % (startvärde). |
 | 3: Utöka | Fler sporter och bolag, analys- och statistikagent. | Per sport enligt §7. |
@@ -182,13 +188,14 @@ Ingen datakostnad äter av vinsten. Svängningarna från månad till månad är 
 - Tid från signal till placering.
 - Avkastning och största nedgång (släpande mått).
 - Antal dagar innan ett konto begränsas.
-- Signaler per gratisanrop, det vill säga hur väl Betfair-bevakningen träffar.
+- Signaler per gratisanrop, det vill säga hur väl schemat träffar.
 
 ## 13. Att göra (du)
 
-1. Öppna ett Betfair-konto och skapa en fördröjd applikationsnyckel. Kontot används bara för data.
-2. Registrera en gratisnyckel hos The Odds API.
-3. Senare: skapa en Telegram-bot via BotFather.
+1. Registrera en gratisnyckel hos The Odds API och lägg den i filen `.env` som `ODDS_API_KEY=...`.
+2. Kör `python3 scripts/check_free_data.py` och skicka utskriften. Den innehåller inte nyckeln.
+3. Kolla om smarkets.com tar emot kunder från Sverige.
+4. Senare: skapa en Telegram-bot via BotFather.
 
 Nycklarna läggs i `.env` på servern och skickas aldrig i chatten.
 
@@ -199,7 +206,9 @@ Nycklarna läggs i `.env` på servern och skickas aldrig i chatten.
 - Pinnacle tillbaka i Sverige med licens: https://igamingbusiness.com/sports-betting/pinnacle-relaunches-in-sweden-after-two-year-absence/
 - Spelinspektionen, anmärkning för PinBet (Sverige) Ltd 2025: https://www.spelinspektionen.se/globalassets/dokument/tillsynsbeslut/varning-anmarkning/pinbet---beslut-om-anmarkning-251512.pdf
 - The Odds API (planer och bolag): https://the-odds-api.com/
-- Betfair, applikationsnycklar (fördröjd nyckel): https://betfair-developer-docs.atlassian.net/wiki/x/URAp
+- Betfair, marknadsutträde Sverige 16 juli 2025: meddelande på betfair.se (skärmdump 2026-11-19)
+- SharpAPI, priser och gratisnivå: https://docs.sharpapi.io/en/pricing/
+- Smarkets svenska licens: https://igamingbusiness.com/legal-compliance/smarkets-secures-wagering-licence-in-sweden
 - The Odds API, gratisnivåns gränser: https://oddspapi.io/blog/the-odds-api-free-tier-limits
 - OddsPapi, gratisnivå: https://oddspapi.io/blog/?p=144
 - Proxies och skrapning av odds: https://databay.com/blog/proxies-for-sports-betting-odds
